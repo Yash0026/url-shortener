@@ -1,79 +1,168 @@
-import {Button} from "@/components/ui/button";
-import {Input} from "@/components/ui/input";
-import {useState} from "react";
-import {useNavigate} from "react-router-dom";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import DeviceStats from "@/components/device-stats";
+import Location from "@/components/location-stats";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { UrlState } from "@/context";
+import { getClicksForUrl } from "@/db/apiClicks";
+import { deleteUrl, getUrl } from "@/db/apiUrls";
+import useFetch from "@/hooks/use-fetch";
+import { Copy, Download, LinkIcon, Trash } from "lucide-react";
+import { useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { BarLoader, BeatLoader } from "react-spinners";
 
-const LandingPage = () => {
-  const [longUrl, setLongUrl] = useState("");
-  const navigate = useNavigate();
+const LinkPage = () => {
+  const downloadImage = () => {
+    const imageUrl = url?.qr;
+    const fileName = url?.title;
 
-  const handleShorten = (e) => {
-    e.preventDefault();
-    if (longUrl) navigate(`/auth?createNew=${longUrl}`);
+    const anchor = document.createElement("a");
+    anchor.href = imageUrl;
+    anchor.download = fileName;
+
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
   };
 
+  const navigate = useNavigate();
+  const { user } = UrlState();
+  const { id } = useParams();
+  const {
+    loading,
+    data: url,
+    fn,
+    error,
+  } = useFetch(getUrl, { id, user_id: user?.id });
+
+  const {
+    loading: loadingStats,
+    data: stats,
+    fn: fnStats,
+  } = useFetch(getClicksForUrl, id);
+
+  const { loading: loadingDelete, fn: fnDelete } = useFetch(deleteUrl, id);
+
+  useEffect(() => {
+    fn();
+  }, []);
+
+  useEffect(() => {
+    if (!error && loading === false) fnStats();
+  }, [loading, error]);
+
+  if (error) {
+    navigate("/dashboard");
+  }
+
+  let link = "";
+  if (url) {
+    link = url?.custom_url ? url?.custom_url : url.short_url;
+  }
+
   return (
-    <div className="flex flex-col items-center">
-      <h2 className="my-10 sm:my-16 text-3xl sm:text-6xl lg:text-7xl text-white text-center font-extrabold">
-        The only URL Shortener <br /> you&rsquo;ll ever need! 👇
-      </h2>
-      <form
-        onSubmit={handleShorten}
-        className="sm:h-14 flex flex-col sm:flex-row w-full md:w-2/4 gap-2"
-      >
-        <Input
-          type="url"
-          placeholder="Enter your loooong URL"
-          value={longUrl}
-          onChange={(e) => setLongUrl(e.target.value)}
-          className="h-full flex-1 py-4 px-4"
-        />
-        <Button type="submit" className="h-full" variant="destructive">
-          Shorten!
-        </Button>
-      </form>
-      <img
-        src="/banner1.jpg" // replace with 2 in small screens
-        className="w-full my-11 md:px-11"
-      />
-      <Accordion type="multiple" collapsible className="w-full md:px-11">
-        <AccordionItem value="item-1">
-          <AccordionTrigger>
-            How does the Trimrr URL shortener works?
-          </AccordionTrigger>
-          <AccordionContent>
-            When you enter a long URL, our system generates a shorter version of
-            that URL. This shortened URL redirects to the original long URL when
-            accessed.
-          </AccordionContent>
-        </AccordionItem>
-        <AccordionItem value="item-2">
-          <AccordionTrigger>
-            Do I need an account to use the app?
-          </AccordionTrigger>
-          <AccordionContent>
-            Yes. Creating an account allows you to manage your URLs, view
-            analytics, and customize your short URLs.
-          </AccordionContent>
-        </AccordionItem>
-        <AccordionItem value="item-3">
-          <AccordionTrigger>
-            What analytics are available for my shortened URLs?
-          </AccordionTrigger>
-          <AccordionContent>
-            You can view the number of clicks, geolocation data of the clicks
-            and device types (mobile/desktop) for each of your shortened URLs.
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-    </div>
+    <>
+      {(loading || loadingStats) && (
+        <BarLoader className="mb-4" width={"100%"} color="#36d7b7" />
+      )}
+      <div className="flex flex-col gap-8 sm:flex-row justify-between">
+        <div className="flex flex-col items-start gap-8 rounded-lg sm:w-2/5">
+          <span className="text-6xl font-extrabold hover:underline cursor-pointer">
+            {url?.title}
+          </span>
+
+          <a
+            href={`${window.location.origin}/${link}`}
+            target="_blank"
+            className="text-3xl sm:text-4xl text-blue-400 font-bold hover:underline cursor-pointer"
+          >
+            {`${window.location.origin}/${link}`}
+          </a>
+
+          <a
+            href={url?.original_url}
+            target="_blank"
+            className="flex items-center gap-1 hover:underline cursor-pointer"
+          >
+            <LinkIcon className="p-1" />
+            {url?.original_url}
+          </a>
+
+          <span className="flex items-end font-extralight text-sm">
+            {new Date(url?.created_at).toLocaleString()}
+          </span>
+
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              onClick={() =>
+                navigator.clipboard.writeText(
+                  `${window.location.origin}/${link}`
+                )
+              }
+            >
+              <Copy />
+            </Button>
+            <Button variant="ghost" onClick={downloadImage}>
+              <Download />
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() =>
+                fnDelete().then(() => {
+                  navigate("/dashboard");
+                })
+              }
+              disable={loadingDelete}
+            >
+              {loadingDelete ? (
+                <BeatLoader size={5} color="white" />
+              ) : (
+                <Trash />
+              )}
+            </Button>
+          </div>
+
+          <img
+            src={url?.qr}
+            className="w-full self-center sm:self-start ring ring-blue-500 p-1 object-contain"
+            alt="qr code"
+          />
+        </div>
+
+        <Card className="sm:w-3/5">
+          <CardHeader>
+            <CardTitle className="text-4xl font-extrabold">Stats</CardTitle>
+          </CardHeader>
+
+          {stats && stats.length ? (
+            <CardContent className="flex flex-col gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Total Clicks</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p>{stats?.length}</p>
+                </CardContent>
+              </Card>
+
+              <CardTitle>Location Data</CardTitle>
+              <Location stats={stats} />
+
+              <CardTitle>Device Info</CardTitle>
+              <DeviceStats stats={stats} />
+            </CardContent>
+          ) : (
+            <CardContent>
+              {loadingStats === false
+                ? "No Statistics yet"
+                : "Loading Statistics.."}
+            </CardContent>
+          )}
+        </Card>
+      </div>
+    </>
   );
 };
 
-export default LandingPage;
+export default LinkPage;
