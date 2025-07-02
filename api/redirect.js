@@ -1,10 +1,10 @@
-
 export default function handler(req, res) {
   const { code } = req.query;
 
   const redirects = {
-    abc123: "https://www.google.com",
-    xyz789: "https://www.github.com",
+    abc123: "https://google.com",
+    xyz789: "https://github.com",
+    icgg: "https://openai.com"
   };
 
   const destination = redirects[code];
